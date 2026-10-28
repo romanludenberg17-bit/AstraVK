@@ -1,0 +1,22 @@
+name: AstraVK project checks
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  sanity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check repository layout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f README.md
+          test -f docs/ARCHITECTURE.md
+          test -f config/astravk.conf
+          grep -q "AstraVK" README.md
+          grep -q "astravk.profile" config/astravk.conf
+          echo "AstraVK repository layout OK"
