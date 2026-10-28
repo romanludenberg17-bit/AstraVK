@@ -32,7 +32,13 @@ struct DeviceProfile {
   uint32_t pipelineWorkerHint = 0;
 };
 
-DeviceProfile detectProfile(const VkPhysicalDeviceProperties& properties);
+// Vulkan exposes GPU identity through VkPhysicalDeviceProperties. Driver
+// strings are supplied separately from VkPhysicalDeviceDriverProperties.
+DeviceProfile detectProfile(
+  const VkPhysicalDeviceProperties& properties,
+  const char* driverName = nullptr,
+  const char* driverInfo = nullptr);
+
 const char* gpuFamilyName(GpuFamily family);
 const char* profileName(Profile profile);
 
