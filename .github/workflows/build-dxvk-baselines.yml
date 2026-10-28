@@ -27,6 +27,7 @@ jobs:
           repository: doitsujin/dxvk
           ref: ${{ matrix.commit }}
           path: upstream-dxvk
+          submodules: recursive
           persist-credentials: false
 
       - name: Verify pinned revision
@@ -49,6 +50,16 @@ jobs:
             meson \
             ninja-build \
             wine64
+
+      - name: Use POSIX threads for MinGW
+        run: |
+          set -euo pipefail
+          for t in i686 x86_64; do
+            sudo update-alternatives --set $t-w64-mingw32-gcc /usr/bin/$t-w64-mingw32-gcc-posix
+            sudo update-alternatives --set $t-w64-mingw32-g++ /usr/bin/$t-w64-mingw32-g++-posix
+          done
+          i686-w64-mingw32-gcc -v 2>&1 | tail -n 5
+          x86_64-w64-mingw32-gcc -v 2>&1 | tail -n 5
 
       - name: Build both Windows architectures
         working-directory: upstream-dxvk
