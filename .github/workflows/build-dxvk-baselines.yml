@@ -75,7 +75,7 @@ jobs:
 
           cp "$source_dir/x32/"*.dll "$bundle/x32/"
           cp "$source_dir/x64/"*.dll "$bundle/x64/"
-          cp "$source_dir/LICENSE" "$bundle/LICENSE"
+          cp "$GITHUB_WORKSPACE/upstream-dxvk/LICENSE" "$bundle/LICENSE"
 
           cat > "$bundle/README.txt" <<'EOF'
           AstraVK DXVK baseline test bundle
