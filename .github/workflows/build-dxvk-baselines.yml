@@ -1,0 +1,128 @@
+name: Build DXVK baseline DLLs
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: DXVK ${{ matrix.version }} (x86 + x64)
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - version: v2.7.1
+            commit: c3dd74be6baec53786d4e064a572185b70347a17
+          - version: v3.1.1
+            commit: b1a1c99ab52b687cf950d62c88bc2fa316b41663
+
+    steps:
+      - name: Checkout pinned upstream DXVK revision
+        uses: actions/checkout@v4
+        with:
+          repository: doitsujin/dxvk
+          ref: ${{ matrix.commit }}
+          path: upstream-dxvk
+          persist-credentials: false
+
+      - name: Verify pinned revision
+        working-directory: upstream-dxvk
+        env:
+          EXPECTED_COMMIT: ${{ matrix.commit }}
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$EXPECTED_COMMIT"
+          echo "Building DXVK ${{ matrix.version }} at $actual"
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            glslang-tools \
+            libvulkan-dev \
+            mingw-w64 \
+            meson \
+            ninja-build \
+            wine64
+
+      - name: Build both Windows architectures
+        working-directory: upstream-dxvk
+        env:
+          DXVK_VERSION: ${{ matrix.version }}
+          BUILD_ROOT: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          ./package-release.sh "$DXVK_VERSION" "$BUILD_ROOT" --no-package
+          test -d "$BUILD_ROOT/dxvk-$DXVK_VERSION/x32"
+          test -d "$BUILD_ROOT/dxvk-$DXVK_VERSION/x64"
+          find "$BUILD_ROOT/dxvk-$DXVK_VERSION/x32" -maxdepth 1 -type f -name '*.dll' -print
+          find "$BUILD_ROOT/dxvk-$DXVK_VERSION/x64" -maxdepth 1 -type f -name '*.dll' -print
+
+      - name: Assemble AstraVK test bundle
+        env:
+          DXVK_VERSION: ${{ matrix.version }}
+          BUILD_ROOT: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          source_dir="$BUILD_ROOT/dxvk-$DXVK_VERSION"
+          bundle="$GITHUB_WORKSPACE/AstraVK-$DXVK_VERSION"
+          mkdir -p "$bundle/x32" "$bundle/x64"
+
+          cp "$source_dir/x32/"*.dll "$bundle/x32/"
+          cp "$source_dir/x64/"*.dll "$bundle/x64/"
+          cp "$source_dir/LICENSE" "$bundle/LICENSE"
+
+          cat > "$bundle/README.txt" <<'EOF'
+          AstraVK DXVK baseline test bundle
+          =================================
+
+          IMPORTANT: This bundle is an unmodified upstream DXVK baseline for testing.
+          It does not contain AstraVK runtime optimizations and does not promise FPS gains.
+
+          Folders:
+            x32/ - 32-bit Windows game DLLs
+            x64/ - 64-bit Windows game DLLs
+
+          Install only the DLLs needed by the game's Direct3D API and architecture.
+          Back up existing files before copying anything into a game directory.
+
+          Typical DXVK DLLs:
+            D3D9:       d3d9.dll
+            D3D10/11:   d3d10core.dll, d3d11.dll, dxgi.dll
+
+          DXVK does not ship d3d10.dll or d3d10_1.dll; Wine supplies those components.
+
+          Wine DLL overrides may be required so native DLLs are preferred, e.g.:
+            WINEDLLOVERRIDES="d3d9=n,b"
+            WINEDLLOVERRIDES="d3d11=n,b;dxgi=n,b;d3d10core=n,b"
+
+          For diagnostics, use DXVK_LOG_LEVEL=info and inspect the DXVK log to confirm
+          which version was actually loaded. If the expected version is not in the log,
+          do not treat the run as a valid comparison.
+
+          Test on a copied game/container first. Do not overwrite GameHub's shared
+          runtime files. Restore the backup if the game fails to launch or renders
+          incorrectly.
+
+          Source revisions:
+            v2.7.1: c3dd74be6baec53786d4e064a572185b70347a17
+            v3.1.1: b1a1c99ab52b687cf950d62c88bc2fa316b41663
+          Upstream project: https://github.com/doitsujin/dxvk
+          License and upstream notices: see LICENSE and upstream source.
+          EOF
+
+          echo "Bundle files:"
+          find "$bundle" -maxdepth 2 -type f -printf '%P\n' | sort
+
+      - name: Upload x86/x64 test bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: AstraVK-DXVK-${{ matrix.version }}-x86-x64
+          path: AstraVK-${{ matrix.version }}/
+          if-no-files-found: error
+          retention-days: 30
