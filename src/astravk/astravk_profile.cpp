@@ -12,17 +12,20 @@ bool contains(const char* text, const char* needle) {
 
 } // namespace
 
-DeviceProfile detectProfile(const VkPhysicalDeviceProperties& properties) {
+DeviceProfile detectProfile(
+    const VkPhysicalDeviceProperties& properties,
+    const char* driverName,
+    const char* driverInfo) {
   DeviceProfile result;
 
   // Vulkan does not expose the host Snapdragon CPU model. AstraVK therefore
   // targets the Adreno GPU family and treats the Snapdragon range as a
   // validation matrix rather than guessing the CPU from unrelated strings.
   result.qualcomm = properties.vendorID == 0x5143;
-  result.turnip = contains(properties.driverName, "Turnip")
-               || contains(properties.driverName, "turnip")
-               || contains(properties.driverInfo, "Turnip")
-               || contains(properties.driverInfo, "turnip");
+  result.turnip = contains(driverName, "Turnip")
+               || contains(driverName, "turnip")
+               || contains(driverInfo, "Turnip")
+               || contains(driverInfo, "turnip");
 
   if (!result.qualcomm)
     return result;
@@ -30,8 +33,6 @@ DeviceProfile detectProfile(const VkPhysicalDeviceProperties& properties) {
   const char* name = properties.deviceName;
 
   // Adreno 725 is used by Snapdragon 7+ Gen 2 and is our lower target edge.
-  // A7xx matching deliberately stays name-based until stable Vulkan GPU IDs
-  // are available for every supported Turnip branch.
   if (contains(name, "Adreno 725") || contains(name, "Adreno 7")) {
     result.gpuFamily = GpuFamily::AdrenoA7xx;
     result.profile = result.turnip ? Profile::TurnipA7xx : Profile::Generic;
@@ -61,10 +62,10 @@ const char* gpuFamilyName(GpuFamily family) {
 
 const char* profileName(Profile profile) {
   switch (profile) {
-    case Profile::TurnipA7xx:  return "turnip-a7xx";
-    case Profile::TurnipA8xx:  return "turnip-a8xx";
+    case Profile::TurnipA7xx:    return "turnip-a7xx";
+    case Profile::TurnipA8xx:    return "turnip-a8xx";
     case Profile::Compatibility: return "compatibility";
-    default:                    return "generic";
+    default:                     return "generic";
   }
 }
 
